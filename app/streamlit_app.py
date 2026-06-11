@@ -7,29 +7,26 @@ Authors : EL YAOUTI Chaimae & ATIF Imane (INSEA)
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, io, base64, traceback, sys
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import plotly.graph_objects as go
 import joblib
 import shap
 
-# ⚠️ FIX CLOUD OBLIGATOIRE : Ajouter le dossier parent au chemin système AVANT d'importer src
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_PARENT = os.path.join(_HERE, "..")
-if _PARENT not in sys.path:
-    sys.path.append(_PARENT)
-
-# Maintenant, Python sait exactement où chercher le dossier src/
+# Import des modules locaux
 from src.preprocessing import create_clinical_features
 
 # ══════════════════════════════════════════════════════════════════════
-# PAGE CONFIG (Doit rester le tout premier appel Streamlit)
+# PAGE CONFIG 
 # ══════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="AlzXAI · Alzheimer Classifier",
