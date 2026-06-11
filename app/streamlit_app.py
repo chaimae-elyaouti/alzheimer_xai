@@ -19,14 +19,17 @@ import plotly.graph_objects as go
 import joblib
 import shap
 
-# Alignement du chemin racine pour l'accès aux modules du dossier src/
-if '..' not in sys.path:
-    sys.path.append('..')
+# ⚠️ FIX CLOUD OBLIGATOIRE : Ajouter le dossier parent au chemin système AVANT d'importer src
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PARENT = os.path.join(_HERE, "..")
+if _PARENT not in sys.path:
+    sys.path.append(_PARENT)
 
+# Maintenant, Python sait exactement où chercher le dossier src/
 from src.preprocessing import create_clinical_features
 
 # ══════════════════════════════════════════════════════════════════════
-# PAGE CONFIG 
+# PAGE CONFIG (Doit rester le tout premier appel Streamlit)
 # ══════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="AlzXAI · Alzheimer Classifier",
