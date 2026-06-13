@@ -1,0 +1,6 @@
+[server]
+runOnSave = true
+
+[env]
+PYTHONPATH = "."
+PIP_PREFER_BINARY = "true"
