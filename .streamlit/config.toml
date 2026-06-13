@@ -4,3 +4,6 @@ runOnSave = true
 [env]
 PYTHONPATH = "."
 PIP_PREFER_BINARY = "true"
+
+[cloud]
+pythonVersion = "3.11"
