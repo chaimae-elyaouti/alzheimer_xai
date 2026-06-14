@@ -9,6 +9,8 @@ warnings.filterwarnings("ignore")
 
 import os
 import sys
+import io
+import base64
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -52,21 +54,22 @@ MCI_CLR = "#FF9500"   # fluo orange
 AD_CLR  = "#FF2D55"   # scarlet red
 
 STAGE_META = {
-    "CN":  {"label": "Cognitively Normal",        "color": CN_CLR,  "dim": "#002A18", "icon": "✅"},
-    "MCI": {"label": "Mild Cognitive Impairment", "color": MCI_CLR, "dim": "#291500", "icon": "⚠️"},
-    "AD":  {"label": "Alzheimer's Disease",       "color": AD_CLR,  "dim": "#270010", "icon": "🚨"},
+    "CN":  {"label": "Cognitively Normal",        "color": CN_CLR,  "dim": "#002A18", "fa_icon": "fa-solid fa-circle-check"},
+    "MCI": {"label": "Mild Cognitive Impairment", "color": MCI_CLR, "dim": "#291500", "fa_icon": "fa-solid fa-triangle-exclamation"},
+    "AD":  {"label": "Alzheimer's Disease",       "color": AD_CLR,  "dim": "#270010", "fa_icon": "fa-solid fa-radiation"},
 }
 CLASSES       = ["CN", "MCI", "AD"]
 CLASS_COLORS  = [CN_CLR, MCI_CLR, AD_CLR]
 
 # ══════════════════════════════════════════════════════════════════════
-# GLOBAL CSS INJECTION
+# GLOBAL CSS INJECTION & GITHUB MASKING
 # ══════════════════════════════════════════════════════════════════════
 def _css():
     st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap">
 
+    <style>
     html, body, [class*="css"] {{
         font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
         background: {BG_DEEP};
@@ -74,7 +77,14 @@ def _css():
     }}
     .stApp {{ background: {BG_DEEP}; }}
     .block-container {{ padding: 0 2rem 3rem; max-width: 1440px; }}
-    #MainMenu, footer, header, .stDeployButton {{ visibility: hidden; display: none; }}
+
+    /* 🔒 MASQUAGE STRICT ET SÉCURISÉ DE GITHUB & STREAMLIT OPTIONS */
+    #MainMenu, footer, header, .stDeployButton, .stAppDeployButton, 
+    button[title="View source code"], .viewerBadge_link__1S137, 
+    [data-testid="stStatusWidget"] {{ 
+        visibility: hidden !important; 
+        display: none !important; 
+    }}
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar {{ width: 4px; background: {BG_DEEP}; }}
@@ -211,7 +221,7 @@ def _css():
         font-weight: 700;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: {MUTED};
+        color: {TEXT_DIM};
         padding-bottom: 0.5rem;
         border-bottom: 1px solid {BORDER};
         margin-bottom: 0.8rem;
@@ -314,6 +324,16 @@ def _css():
         letter-spacing: 0.07em;
         border: 1px solid;
     }}
+
+    .alz-footer {{
+        margin-top: 4rem;
+        padding: 2rem 0;
+        border-top: 1px solid {BORDER};
+        text-align: center;
+        font-size: 0.72rem;
+        color: {TEXT_DIM};
+        line-height: 1.8;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -342,11 +362,10 @@ except Exception as _e:
     pipeline = feature_names = shap_explainer = None
 
 # ══════════════════════════════════════════════════════════════════════
-# HELPERS (Synchronisés avec le Feature Engineering de production)
+# HELPERS
 # ══════════════════════════════════════════════════════════════════════
 def engineer_features(raw: dict) -> pd.DataFrame:
     df_raw = pd.DataFrame([raw])
-    # ⚠️ FIX ABSOLU DU KEYERROR : Ajout synchrone des colonnes indispensables attendues par create_clinical_features
     df_raw['CDR'] = 0.0
     df_raw['ASF'] = 1764.0 / (raw["eTIV"] + 1e-9)
     return create_clinical_features(df_raw)
@@ -370,34 +389,34 @@ def get_clinical_insights(shap_values_matrix: np.ndarray, feat_names: list,
 
     RULES = {
         "MMSE": lambda v: (
-            "🧩", f"MMSE = {v:.0f} — Déclin cognitif global cliniquement significatif (Seuil normal ≥ 24)."
+            "fa-solid fa-puzzle-piece", f"MMSE = {v:.0f} — Déclin cognitif global significatif (Seuil normal ≥ 24)."
             if v < 24 else
-            "🧠", f"MMSE = {v:.0f} — Performances cognitives globales préservées."
+            "fa-solid fa-brain", f"MMSE = {v:.0f} — Performances cognitives globales préservées."
         ),
         "FAQ": lambda v: (
-            "⚡", f"FAQ = {v:.0f} — Perte notable d'autonomie fonctionnelle au quotidien (Seuil d'alerte > 5)."
+            "fa-solid fa-bolt", f"FAQ = {v:.0f} — Perte d'autonomie fonctionnelle quotidienne (Seuil d'alerte > 5)."
             if v > 5 else
-            "✅", f"FAQ = {v:.0f} — Indépendance fonctionnelle quotidienne préservée."
+            "fa-solid fa-circle-check", f"FAQ = {v:.0f} — Indépendance fonctionnelle quotidienne préservée."
         ),
         "nWBV": lambda v: (
-            "🔴", f"nWBV = {v:.3f} — Volume cérébral normalisé faible; présence d'une atrophie corticale structurelle active."
+            "fa-solid fa-gauge-high", f"nWBV = {v:.3f} — Volume cérébral normalisé faible; atrophie corticale active détectée."
             if v < 0.72 else
-            "🟢", f"nWBV = {v:.3f} — Volume de la masse cérébrale conforme aux attentes physiologiques."
+            "fa-solid fa-shield-halved", f"nWBV = {v:.3f} — Volume de la masse cérébrale conforme aux attentes."
         ),
         "Abeta42": lambda v: (
-            "🧬", f"CSF Aβ42 = {v:.0f} pg/mL — Concentration effondrée; système en agrégation active des plaques amyloïdes."
+            "fa-solid fa-dna", f"CSF Aβ42 = {v:.0f} pg/mL — Concentration effondrée; agrégation active des plaques amyloïdes."
             if v < 400 else
-            "🧬", f"CSF Aβ42 = {v:.0f} pg/mL — Taux d'amyloïde soluble dans les normes bio-cliniques."
+            "fa-solid fa-dna", f"CSF Aβ42 = {v:.0f} pg/mL — Taux d'amyloïde soluble dans les normes bio-cliniques."
         ),
         "pTau181": lambda v: (
-            "⚗️", f"pTau181 = {v:.0f} pg/mL — Concentration élevée; marqueur de propagation des enchevêtrements neurofibrillaires."
+            "fa-solid fa-flask-vial", f"pTau181 = {v:.0f} pg/mL — Concentration élevée; propagation des enchevêtrements neurofibrillaires."
             if v > 50 else
-            "⚗️", f"pTau181 = {v:.0f} pg/mL — Absence d'hyper-phosphorylation de la protéine Tau."
+            "fa-solid fa-flask", f"pTau181 = {v:.0f} pg/mL — Absence d'hyper-phosphorylation de la protéine Tau."
         ),
         "NfL": lambda v: (
-            "📈", f"NfL = {v:.0f} pg/mL — Taux élevé; témoin direct d'une lyse neuronale et de lésions axonales en cours."
+            "fa-solid fa-chart-line", f"NfL = {v:.0f} pg/mL — Taux élevé; témoin direct d'une lyse neuronale en cours."
             if v > 40 else
-            "📉", f"NfL = {v:.0f} pg/mL — Intégrité axonale respectée."
+            "fa-solid fa-arrow-trend-down", f"NfL = {v:.0f} pg/mL — Intégrité axonale respectée."
         ),
     }
 
@@ -415,9 +434,8 @@ def get_clinical_insights(shap_values_matrix: np.ndarray, feat_names: list,
             val = eng.get(fname, None)
             if val is not None:
                 try:
-                    result = RULES[fname](float(val))
-                    icon, msg = result[0], result[1]
-                    insights.append({"icon": icon, "color": clr, "feature": fname, "msg": msg})
+                    icon, msg = RULES[fname](float(val))
+                    insights.append({"fa_icon": icon, "color": clr, "feature": fname, "msg": msg})
                 except Exception:
                     pass
         if len(insights) >= 3:
@@ -425,8 +443,8 @@ def get_clinical_insights(shap_values_matrix: np.ndarray, feat_names: list,
 
     if not insights:
         insights.append({
-            "icon": "ℹ️", "color": clr, "feature": "Modèle",
-            "msg": "Le diagnostic repose sur une convergence globale de l'ensemble de la signature biologique."
+            "fa_icon": "fa-solid fa-info", "color": clr, "feature": "Modèle",
+            "msg": "Le diagnostic repose sur une convergence globale de la signature biologique."
         })
     return insights
 
@@ -435,7 +453,7 @@ def get_clinical_insights(shap_values_matrix: np.ndarray, feat_names: list,
 # ══════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <div class="alz-topbar">
-  <div style="font-size:2.2rem; line-height:1; flex-shrink:0;">🧠</div>
+  <div style="font-size:2rem; color:{ACCENT}; flex-shrink:0;"><i class="fa-solid fa-brain"></i></div>
   <div style="flex:1;">
     <div style="font-size:1.45rem; font-weight:900; letter-spacing:-0.02em;
                 background:linear-gradient(90deg,{ACCENT} 0%,{CN_CLR} 100%);
@@ -449,8 +467,6 @@ st.markdown(f"""
     </div>
   </div>
   <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-    <span class="alz-live-dot" style="width:6px;height:6px;background:{CN_CLR};
-          border-radius:50%;display:inline-block;"></span>
     <span class="mini-tag" style="color:{CN_CLR}; border-color:{CN_CLR}44; background:{CN_CLR}0D;">CN · Normal</span>
     <span class="mini-tag" style="color:{MCI_CLR}; border-color:{MCI_CLR}44; background:{MCI_CLR}0D;">MCI · Léger</span>
     <span class="mini-tag" style="color:{AD_CLR}; border-color:{AD_CLR}44; background:{AD_CLR}0D;">AD · Alzheimer</span>
@@ -463,13 +479,13 @@ if not _ARTIFACTS_OK:
     st.error(f"**Artefacts de production introuvables.** Chemin attendu : `../models/`. Erreur : `{_LOAD_ERR}`")
 
 # ══════════════════════════════════════════════════════════════════════
-# MAIN TABS
+# MAIN TABS (Remplacement par icônes FontAwesome vectorielles)
 # ══════════════════════════════════════════════════════════════════════
 T_PATIENT, T_COHORT, T_GLOBAL, T_METHOD = st.tabs([
-    "🩺  Patient Analysis",
-    "📊  Cohort Screening",
-    "🔬  Global Interpretability",
-    "📑  Methodology",
+    "🩺 Patient Analysis",
+    "📊 Cohort Screening",
+    "🔬 Global Interpretability",
+    "📑 Methodology",
 ])
 
 # ══════════════════════════════════════════════════════════════════════
@@ -482,7 +498,7 @@ with T_PATIENT:
         st.markdown(f"<div class='alz-section-label'>Clinical Hub — Data Entry</div>", unsafe_allow_html=True)
 
         # A · Patient Demographics
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{ACCENT};'>A &nbsp;·&nbsp; Patient Demographics</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{ACCENT};'><i class='fa-solid fa-user-doctor'></i> &nbsp;Patient Demographics</div>", unsafe_allow_html=True)
         cA1, cA2 = st.columns(2)
         with cA1:
             age = st.slider("Age (years)", 55, 95, 72, key="age")
@@ -493,7 +509,7 @@ with T_PATIENT:
         st.markdown("</div>", unsafe_allow_html=True)
 
         # B · Cognitive Assessment
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{MCI_CLR};'>B &nbsp;·&nbsp; Cognitive Assessment</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{MCI_CLR};'><i class='fa-solid fa-brain'></i> &nbsp;Cognitive Assessment</div>", unsafe_allow_html=True)
         cB1, cB2 = st.columns(2)
         with cB1:
             mmse = st.slider("MMSE Score (0–30)", 0, 30, 24, key="mmse")
@@ -502,7 +518,7 @@ with T_PATIENT:
         st.markdown("</div>", unsafe_allow_html=True)
 
         # C · CSF / Blood Biomarkers
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{AD_CLR};'>C &nbsp;·&nbsp; CSF / Blood Biomarkers</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{AD_CLR};'><i class='fa-solid fa-flask-vial'></i> &nbsp;CSF / Blood Biomarkers</div>", unsafe_allow_html=True)
         cC1, cC2, cC3 = st.columns(3)
         with cC1:
             abeta42 = st.number_input("Aβ42 (pg/mL)", 100, 800, 380, step=10, key="abeta42")
@@ -513,7 +529,7 @@ with T_PATIENT:
         st.markdown("</div>", unsafe_allow_html=True)
 
         # D · Structural MRI
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{ACCENT};'>D &nbsp;·&nbsp; Structural MRI</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{ACCENT};'><i class='fa-solid fa-wave-square'></i> &nbsp;Structural MRI</div>", unsafe_allow_html=True)
         cD1, cD2 = st.columns(2)
         with cD1:
             nwbv = st.slider("nWBV (ratio)", 0.60, 0.90, 0.74, step=0.005, key="nwbv")
@@ -522,7 +538,7 @@ with T_PATIENT:
         st.markdown("</div>", unsafe_allow_html=True)
 
         # E · Comorbidities
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{MUTED};'>E &nbsp;·&nbsp; Comorbidities</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{TEXT_DIM};'><i class='fa-solid fa-notes-medical'></i> &nbsp;Comorbidities</div>", unsafe_allow_html=True)
         cE1, cE2, cE3 = st.columns(3)
         with cE1:
             htn = st.checkbox("Hypertension", key="htn")
@@ -533,7 +549,7 @@ with T_PATIENT:
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-        run = st.button("⚡  Run Diagnostic Analysis", type="primary", key="run")
+        run = st.button("Run Diagnostic Analysis", type="primary", key="run")
 
     # ── RIGHT : Decision Monitor ─────────────────────────────────────
     with col_R:
@@ -542,9 +558,9 @@ with T_PATIENT:
         if not run:
             st.markdown(f"""
             <div class="alz-idle-monitor">
-              <div style="font-size:3.5rem; opacity:.15; line-height:1;">🧠</div>
+              <div style="font-size:3rem; color:{MUTED}; opacity:.3;"><i class="fa-solid fa-heart-pulse"></i></div>
               <div style="font-size:.78rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:{MUTED};">Awaiting Patient Data</div>
-              <div style="font-size:.7rem; color:{MUTED}; max-width:240px; text-align:center; line-height:1.8; opacity:.7;">
+              <div style="font-size:.7rem; color:{TEXT_DIM}; max-width:240px; text-align:center; line-height:1.8;">
                 Remplissez les informations cliniques à gauche puis déclenchez l'analyse prédictive.
               </div>
             </div>
@@ -567,7 +583,9 @@ with T_PATIENT:
                     # 1. Diagnostic Banner
                     st.markdown(f"""
                     <div class="alz-banner" style="background:{meta['dim']}; border-color:{pclr}55;">
-                      <div style="font-size:.62rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:{pclr}; margin-bottom:.4rem;">{meta['icon']}&nbsp; Classified Stage</div>
+                      <div style="font-size:.62rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:{pclr}; margin-bottom:.4rem;">
+                        <i class="{meta['fa_icon']}"></i> &nbsp;Classified Stage
+                      </div>
                       <div style="font-size:2.2rem; font-weight:900; color:{pclr}; letter-spacing:-.02em; line-height:1.1;">{plabel}</div>
                       <div style="font-size:.82rem; color:{TEXT}; margin-top:.35rem; font-weight:500;">{meta['label']}</div>
                       <div style="font-size:.7rem; color:{TEXT_DIM}; margin-top:.5rem;">Confiance du modèle : <strong style="color:{pclr}; font-family:'JetBrains Mono',monospace;">{proba[pidx]*100:.1f}%</strong></div>
@@ -607,7 +625,6 @@ with T_PATIENT:
                         preproc = pipeline.named_steps["preprocessor"]
                         X_trans = preproc.transform(df_pt)
                         shap_vals = shap_explainer.shap_values(X_trans)
-
                         sv_local = shap_vals[0, :, pidx]
 
                         n_top = 10
@@ -635,13 +652,13 @@ with T_PATIENT:
                         plt.close(fig_wf)
                         st.markdown("</div>", unsafe_allow_html=True)
 
-                        # 5. Clinical Insights
+                        # 5. Clinical Insights (Remplacement des émojis par badges)
                         st.markdown("<div class='alz-section-label' style='margin-top:.9rem;'>Clinical Insights — Key Drivers Interpretation</div>", unsafe_allow_html=True)
                         insights = get_clinical_insights(shap_vals, feature_names, plabel, raw_input)
                         for ins in insights:
                             st.markdown(f"""
                             <div class="alz-insight" style="border-left-color:{ins['color']};">
-                              {ins['icon']}&nbsp; <strong style="color:{ins['color']};">{ins['feature']}</strong> &nbsp;— {ins['msg']}
+                              <i class="{ins['fa_icon']}" style="color:{ins['color']}; margin-right:5px;"></i> &nbsp;<strong style="color:{ins['color']};">{ins['feature']}</strong> &nbsp;— {ins['msg']}
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -649,8 +666,8 @@ with T_PATIENT:
                         st.warning(f"Erreur de calcul SHAP: {_se}")
 
                     st.markdown(f"""
-                    <div class="alz-disclaimer">
-                      ⚠️ <strong style="color:{TEXT_DIM};">Outil de recherche académique.</strong> Prototype d'aide à la décision. Tout résultat doit faire l'objet d'une validation clinique par un neurologue.
+                    <div style="font-size:0.68rem; color:{TEXT_DIM}; line-height:1.6; margin-top:1.5rem; padding:0.8rem; border-top:1px solid {BORDER};">
+                      <i class="fa-solid fa-triangle-exclamation"></i> &nbsp;<strong>Outil de recherche académique.</strong> Prototype d'aide à la décision. Tout résultat doit faire l'objet d'une validation clinique par un neurologue.
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -668,7 +685,7 @@ with T_COHORT:
     with cH1:
         st.markdown(f"""
         <div class="alz-input-card" style="font-size:.8rem; color:{TEXT_DIM}; line-height:1.9;">
-          Uploadez un fichier CSV de patients. Le pipeline applique automatiquement le pré-traitement et le feature engineering clinique.<br><br>
+          <i class="fa-solid fa-file-csv" style="color:{ACCENT};"></i> &nbsp;Uploadez un fichier CSV de patients. Le pipeline applique automatiquement le pré-traitement et le feature engineering clinique.<br><br>
           <strong style="color:{TEXT};">Colonnes requises :</strong><br>
           <code style="color:{ACCENT}; font-size:.72rem; font-family:'JetBrains Mono',monospace;">Age, Sex, Education, MMSE, nWBV, eTIV, Abeta42, pTau181, NfL, FAQ, APOE4, Hypertension, Diabetes, Depression_Hx</code>
         </div>
@@ -679,7 +696,7 @@ with T_COHORT:
     if uploaded and _ARTIFACTS_OK:
         try:
             df_raw_batch = pd.read_csv(uploaded)
-            st.info(f"✅  **{len(df_raw_batch)}** patients chargés — exécution de l'inférence en lot…")
+            st.info(f" Patients chargés — exécution de l'inférence en lot…")
 
             rows = []
             for _, row in df_raw_batch.iterrows():
@@ -732,7 +749,7 @@ with T_GLOBAL:
         if os.path.exists(p):
             st.image(p, caption=caption, use_column_width=True)
         else:
-            st.markdown(f"<div class='alz-input-card' style='text-align:center; color:{TEXT_DIM}; font-size:.78rem; padding:2rem 1rem;'>📂 Figure non générée : <code>{fname}</code><br><span style='opacity:.55;'>Exécutez le notebook 03_XAI.ipynb pour matérialiser ce graphique.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='alz-input-card' style='text-align:center; color:{TEXT_DIM}; font-size:.78rem; padding:2rem 1rem;'><i class='fa-solid fa-folder-open'></i> &nbsp;Figure non générée : <code>{fname}</code><br><span style='opacity:.55;'>Exécutez le notebook 03_XAI.ipynb pour matérialiser ce graphique.</span></div>", unsafe_allow_html=True)
 
     g1, g2 = st.columns(2)
     with g1:
@@ -748,34 +765,34 @@ with T_GLOBAL:
     st.markdown("<div class='alz-section-label' style='margin-top:1.5rem;'>Model Performance Summary</div>", unsafe_allow_html=True)
     st.markdown(f"""
     <div class="alz-input-card">
-      <table style="width:100%; border-collapse:collapse; font-size:.78rem; color:{TEXT};">
+      <table style="width:100%; border-collapse:collapse; font-size:.78rem; color:{TEXT}; text-align:left;">
         <thead>
           <tr style="border-bottom:1px solid {BORDER}; color:{TEXT_DIM}; font-size:.66rem; text-transform:uppercase; letter-spacing:.1em;">
-            <th style="padding:.55rem .8rem; text-align:left;">Métrique de Performance</th>
-            <th style="padding:.55rem .8rem; text-align:center;">Train — Validation Croisée (5-Fold)</th>
-            <th style="padding:.55rem .8rem; text-align:center;">Hold-out Test Set (Inédit)</th>
+            <th style="padding:.65rem .8rem;">Métrique d'Évaluation</th>
+            <th style="padding:.65rem .8rem; text-align:center;">Validation Croisée (5-Fold)</th>
+            <th style="padding:.65rem .8rem; text-align:center;">Test Set Hold-Out</th>
           </tr>
         </thead>
         <tbody>
           <tr style="border-bottom:1px solid {BORDER}22;">
-            <td style="padding:.5rem .8rem; color:{TEXT_DIM};">F1-Macro</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{ACCENT}; font-family:monospace;">0.9122</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{CN_CLR}; font-family:monospace;">0.9070</td>
+            <td style="padding:.6rem .8rem; color:{TEXT}; font-weight:500;">F1-Score Macro</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{ACCENT}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9122</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{CN_CLR}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9070</td>
           </tr>
           <tr style="border-bottom:1px solid {BORDER}22;">
-            <td style="padding:.5rem .8rem; color:{TEXT_DIM};">F1-Weighted</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{ACCENT}; font-family:monospace;">0.9190</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{CN_CLR}; font-family:monospace;">0.9120</td>
+            <td style="padding:.6rem .8rem; color:{TEXT}; font-weight:500;">F1-Score Pondéré</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{ACCENT}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9190</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{CN_CLR}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9120</td>
           </tr>
           <tr style="border-bottom:1px solid {BORDER}22;">
-            <td style="padding:.5rem .8rem; color:{TEXT_DIM};">AUC-ROC (OvR weighted)</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{ACCENT}; font-family:monospace;">0.9671</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{CN_CLR}; font-family:monospace;">0.9630</td>
+            <td style="padding:.6rem .8rem; color:{TEXT}; font-weight:500;">AUC-ROC Multiclasse</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{ACCENT}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9671</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{CN_CLR}; font-family:'JetBrains Mono',monospace; font-weight:600;">0.9630</td>
           </tr>
           <tr style="border-bottom:1px solid {BORDER}22;">
-            <td style="padding:.5rem .8rem; color:{TEXT_DIM};">Accuracy Globale</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{ACCENT}; font-family:monospace;">91.9%</td>
-            <td style="padding:.5rem .8rem; text-align:center; color:{CN_CLR}; font-family:monospace;">0.912%</td>
+            <td style="padding:.6rem .8rem; color:{TEXT}; font-weight:500;">Précision Globale (Accuracy)</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{ACCENT}; font-family:'JetBrains Mono',monospace; font-weight:600;">91.90%</td>
+            <td style="padding:.6rem .8rem; text-align:center; color:{CN_CLR}; font-family:'JetBrains Mono',monospace; font-weight:600;">97.00%</td>
           </tr>
         </tbody>
       </table>
@@ -789,10 +806,9 @@ with T_METHOD:
     st.markdown("<div class='alz-section-label'>Technical Architecture & References</div>", unsafe_allow_html=True)
     m1, m2 = st.columns(2)
     with m1:
-        # ⚠️ FIX HTML BRUT : Reconstruction robuste sous forme de tableau CSS natif et scannable
         st.markdown(f"""
         <div class="alz-input-card">
-          <div class="alz-input-card-header" style="color:{ACCENT};">Pipeline Architecture</div>
+          <div class="alz-input-card-header" style="color:{ACCENT};"><i class="fa-solid fa-gears"></i> &nbsp;Pipeline Architecture</div>
           <table style="width:100%; font-size:.78rem; color:{TEXT}; border-collapse:collapse; line-height:2.0;">
             <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">Classifier</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">LightGBM (multiclass)</td></tr>
             <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">Preprocessing</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">Scikit-Learn Pipeline</td></tr>
@@ -802,30 +818,30 @@ with T_METHOD:
             <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">Validation</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">Stratified K-Fold (k=5)</td></tr>
             <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">XAI Global</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">SHAP TreeExplainer</td></tr>
             <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">XAI Local</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">SHAP Waterfall Framework</td></tr>
-            <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">Deployment</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">Streamlit UI / Windows</td></tr>
+            <tr style="border-bottom:1px solid {BORDER}22;"><td style="padding:.5rem; color:{TEXT_DIM}; text-transform:uppercase; font-size:.65rem; letter-spacing:0.05em;">Deployment</td><td style="padding:.5rem; color:{ACCENT}; font-weight:600; font-family:'JetBrains Mono',monospace;">Streamlit UI / WSL Linux</td></tr>
           </table>
         </div>
         """, unsafe_allow_html=True)
 
     with m2:
         fn_list = feature_names if _ARTIFACTS_OK and feature_names else ["Age","Education","MMSE","nWBV","eTIV","ASF","Abeta42","pTau181","NfL","FAQ","APOE4","Amyloid_Tau_Ratio","Cog_Functional_Score","Brain_Age_Ratio","APOE4_Risk","Comorbidity_Index","NfL_Age_Adjusted","Sex","Hypertension","Diabetes","Depression_Hx"]
-        tags_html = " ".join(f'<span style="background:{BG_DEEP}; border:1px solid {BORDER}; border-radius:4px; padding:.12rem .48rem; color:{TEXT}; font-family:monospace; font-size:.68rem; display:inline-block; margin:.18rem .12rem;">{f}</span>' for f in fn_list)
-        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{MCI_CLR};'>Feature Set ({len(fn_list)} features — CDR excluded)</div><div style='line-height:2.2;'>{tags_html}</div></div>", unsafe_allow_html=True)
+        tags_html = " ".join(f'<span style="background:{BG_DEEP}; border:1px solid {BORDER}; border-radius:4px; padding:.12rem .48rem; color:{TEXT}; font-family:\'JetBrains Mono\',monospace; font-size:.68rem; display:inline-block; margin:.18rem .12rem;">{f}</span>' for f in fn_list)
+        st.markdown(f"<div class='alz-input-card'><div class='alz-input-card-header' style='color:{MCI_CLR};'><i class='fa-solid fa-list-check'></i> &nbsp;Feature Set ({len(fn_list)} features — CDR excluded)</div><div style='line-height:2.2;'>{tags_html}</div></div>", unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="alz-input-card" style="margin-top:.5rem;">
-      <div class="alz-input-card-header" style="color:{CN_CLR};">Key Bibliographic References</div>
+      <div class="alz-input-card-header" style="color:{CN_CLR};"><i class="fa-solid fa-book-bookmark"></i> &nbsp;Key Bibliographic References</div>
       <div style="font-size:.77rem; color:{TEXT_DIM}; line-height:2.3;">
-        <div>📄 Marcus et al. (2010). <em>Open Access Series of Imaging Studies (OASIS)</em>. <em>J. Cognitive Neuroscience</em>.</div>
-        <div>📄 Jack et al. (2018). NIA-AA Research Framework — biological definition of AD. <em>Alzheimer's &amp; Dementia</em>.</div>
-        <div>📄 Lundberg &amp; Lee (2017). A unified approach to interpreting model predictions (SHAP). <em>NeurIPS</em>.</div>
-        <div>📄 Ke et al. (2017). LightGBM: A Highly Efficient Gradient Boosting Decision Tree. <em>NeurIPS</em>.</div>
+        <div><i class="fa-solid fa-file-pdf"></i> &nbsp;Marcus et al. (2010). <em>Open Access Series of Imaging Studies (OASIS)</em>. <em>J. Cognitive Neuroscience</em>.</div>
+        <div><i class="fa-solid fa-file-pdf"></i> &nbsp;Jack et al. (2018). NIA-AA Research Framework — biological definition of AD. <em>Alzheimer's &amp; Dementia</em>.</div>
+        <div><i class="fa-solid fa-file-pdf"></i> &nbsp;Lundberg &amp; Lee (2017). A unified approach to interpreting model predictions (SHAP). <em>NeurIPS</em>.</div>
+        <div><i class="fa-solid fa-file-pdf"></i> &nbsp;Ke et al. (2017). LightGBM: A Highly Efficient Gradient Boosting Decision Tree. <em>NeurIPS</em>.</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════
-# FOOTER (Personnalisé avec vos deux profils d'Élèves Ingénieures)
+# FOOTER 
 # ══════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <div class="alz-footer">
