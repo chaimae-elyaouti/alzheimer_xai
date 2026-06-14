@@ -64,7 +64,6 @@ CLASS_COLORS  = [CN_CLR, MCI_CLR, AD_CLR]
 # ══════════════════════════════════════════════════════════════════════
 # GLOBAL CSS INJECTION & GITHUB MASKING
 # ══════════════════════════════════════════════════════════════════════
-
 def _css():
     st.markdown(f"""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -79,27 +78,6 @@ def _css():
     .stApp {{ background: {BG_DEEP}; }}
     .block-container {{ padding: 0 2rem 3rem; max-width: 1440px; }}
 
-    /*  MASQUAGE RADICAL DU BADE DE CRÉATION (Created by...) ET DE LA NOUVELLE BARRE DE MENU SYSTÈME */
-    /* Cible le conteneur gris de la barre de création, le badge, et le footer système */
-    #MainMenu, header, footer,
-    [data-testid="stStatusWidget"],
-    [data-testid="stViewerBadge"],
-    .viewerBadge_container__172Iw,
-    [class*="viewerBadge"],
-    /* Cible le nouveau conteneur de la barre d'outils Streamlit Cloud (gris) visible sur le screenshot */
-    .viewerBadge_root__25WqH, 
-    .viewerBadge_content__3Rz-x,
-    div[aria-label="View source code or report a bug"], /* Cible par l'attribut d'accessibilité */
-    div[class*="viewerBadge_root"],
-    /* Cible spécifiquement la photo de profil dans ce nouveau conteneur */
-    [class*="viewerBadge_avatar"],
-    /* Rend l'intégralité de la barre non cliquable par sécurité */
-    [class*="viewerBadge"] {{ 
-        visibility: hidden !important; 
-        display: none !important; 
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }}
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar {{ width: 4px; background: {BG_DEEP}; }}
