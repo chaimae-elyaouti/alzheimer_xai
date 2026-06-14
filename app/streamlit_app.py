@@ -64,6 +64,7 @@ CLASS_COLORS  = [CN_CLR, MCI_CLR, AD_CLR]
 # ══════════════════════════════════════════════════════════════════════
 # GLOBAL CSS INJECTION & GITHUB MASKING
 # ══════════════════════════════════════════════════════════════════════
+
 def _css():
     st.markdown(f"""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -78,10 +79,11 @@ def _css():
     .stApp {{ background: {BG_DEEP}; }}
     .block-container {{ padding: 0 2rem 3rem; max-width: 1440px; }}
 
-    /* 🔒 MASQUAGE STRICT ET SÉCURISÉ DE GITHUB & STREAMLIT OPTIONS */
+    /*  MASQUAGE STRICT ET SÉCURISÉ DE GITHUB & STREAMLIT OPTIONS & VIEW BADGE */
     #MainMenu, footer, header, .stDeployButton, .stAppDeployButton, 
     button[title="View source code"], .viewerBadge_link__1S137, 
-    [data-testid="stStatusWidget"] {{ 
+    [data-testid="stStatusWidget"], [data-testid="stViewerBadge"], 
+    .viewerBadge_container__172Iw, [class*="viewerBadge"] {{ 
         visibility: hidden !important; 
         display: none !important; 
     }}
