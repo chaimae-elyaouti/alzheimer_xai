@@ -79,13 +79,15 @@ def _css():
     .stApp {{ background: {BG_DEEP}; }}
     .block-container {{ padding: 0 2rem 3rem; max-width: 1440px; }}
 
-    /*  MASQUAGE STRICT ET SÉCURISÉ DE GITHUB & STREAMLIT OPTIONS & VIEW BADGE */
+    /* MASQUAGE STRICT ET SÉCURISÉ DE GITHUB, MENU OPTIONS & DU BADE DE CRÉATION (Created by...) */
     #MainMenu, footer, header, .stDeployButton, .stAppDeployButton, 
-    button[title="View source code"], .viewerBadge_link__1S137, 
+    button[title="View source code"], .stStreamlitLogo, .viewerBadge_link__1S137, 
     [data-testid="stStatusWidget"], [data-testid="stViewerBadge"], 
-    .viewerBadge_container__172Iw, [class*="viewerBadge"] {{ 
+    .viewerBadge_container__172Iw, [class*="viewerBadge"], [class*="stAppDeployButton"] {{ 
         visibility: hidden !important; 
         display: none !important; 
+        opacity: 0 !important;
+        pointer-events: none !important; /* Rend la photo non cliquable s'il reste 1px */
     }}
 
     /* ── Scrollbar ── */
